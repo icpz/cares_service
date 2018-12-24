@@ -9,7 +9,7 @@ namespace detail {
 template<class Service>
 class basic_cares_resolver : public boost::asio::basic_io_object<Service> {
 public:
-    using result_type = typename Service::result_type;
+    using results_type = typename Service::results_type;
 
     explicit basic_cares_resolver(boost::asio::io_context &context)
         : boost::asio::basic_io_object<Service>(context) {

@@ -14,8 +14,8 @@ template<class Protocol, class ChannelImplementation = Channel>
 class base_cares_service : public boost::asio::io_context::service {
 public:
     using implementation_type = std::shared_ptr<ChannelImplementation>;
-    using result_type = EndpointSequence<Protocol>;
-    using resolve_handler = std::function<void(boost::system::error_code, result_type)>;
+    using results_type = EndpointSequence<Protocol>;
+    using resolve_handler = std::function<void(boost::system::error_code, results_type)>;
 
     static boost::asio::io_context::id id;
 
@@ -51,7 +51,7 @@ public:
     template<class Handler>
     void async_resolve(implementation_type &impl, const std::string &name, uint16_t port, Handler cb) {
         auto handler = std::make_shared<resolve_handler>(std::move(cb));
-        auto result = std::make_shared<result_type>(port);
+        auto result = std::make_shared<results_type>(port);
         auto wrapper = \
             [impl, handler, result, this]
             (boost::system::error_code ec, struct hostent *entries) {
