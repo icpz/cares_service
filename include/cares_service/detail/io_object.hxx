@@ -16,8 +16,8 @@ public:
     }
 
     template<class Handler>
-    void async_resolve(const std::string &name, uint16_t port, Handler cb) {
-        this->get_service().async_resolve(this->get_implementation(), name, port, std::move(cb));
+    void async_resolve(const std::string &name, uint16_t port, Handler &&cb) {
+        this->get_service().async_resolve(this->get_implementation(), name, port, std::forward<Handler>(cb));
     }
 
     void cancel() {

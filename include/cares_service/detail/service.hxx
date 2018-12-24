@@ -49,8 +49,8 @@ public:
     }
 
     template<class Handler>
-    void async_resolve(implementation_type &impl, const std::string &name, uint16_t port, Handler cb) {
-        auto handler = std::make_shared<resolve_handler>(std::move(cb));
+    void async_resolve(implementation_type &impl, const std::string &name, uint16_t port, Handler &&cb) {
+        auto handler = std::make_shared<Handler>(std::move(cb));
         auto result = std::make_shared<results_type>(port);
         auto wrapper = \
             [impl, handler, result, this]
