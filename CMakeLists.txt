@@ -3,7 +3,7 @@ project(cares_service)
 
 set(CMAKE_CXX_STANDARD 14)
 
-set(INC_PREFIX include/cares_service)
+set(INC_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/include/cares_service)
 
 list(APPEND CXX_HDRS
     ${INC_PREFIX}/cares.hxx
@@ -14,8 +14,14 @@ list(APPEND CXX_HDRS
     ${INC_PREFIX}/detail/service.hxx
     )
 
+find_library(CARES NAMES libcares.a cares.lib cares)
+
+if (CARES-NOTFOUND)
+    message(FATAL "libcares not found")
+endif (CARES-NOTFOUND)
+
 add_library(${PROJECT_NAME} INTERFACE)
 target_sources(${PROJECT_NAME} INTERFACE ${CXX_HDRS})
 target_include_directories(${PROJECT_NAME} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(${PROJECT_NAME} INTERFACE cares)
+target_link_libraries(${PROJECT_NAME} INTERFACE ${CARES})
 
