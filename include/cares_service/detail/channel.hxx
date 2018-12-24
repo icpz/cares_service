@@ -19,6 +19,7 @@ namespace cares {
 namespace detail {
 
 std::shared_ptr<struct ares_socket_functions> GetSocketFunctions();
+char *GetAresLookups();
 
 ares_socket_t OpenSocket(int family, int type, int protocol, void *arg);
 int CloseSocket(ares_socket_t fd, void *arg);
@@ -127,7 +128,8 @@ public:
         option.sock_state_cb_data = this;
         option.timeout = 3000;
         option.tries = 3;
-        int mask = ARES_OPT_NOROTATE | ARES_OPT_TIMEOUTMS | ARES_OPT_SOCK_STATE_CB | ARES_OPT_TRIES;
+        option.lookups = GetAresLookups();
+        int mask = ARES_OPT_NOROTATE | ARES_OPT_TIMEOUTMS | ARES_OPT_SOCK_STATE_CB | ARES_OPT_TRIES | ARES_OPT_LOOKUPS;
 
         int ret = ::ares_init_options(&channel_, &option, mask);
         if (ret != ARES_SUCCESS) {
@@ -250,6 +252,11 @@ std::shared_ptr<struct ares_socket_functions> GetSocketFunctions() {
             return result;
         }();
     return funcs;
+}
+
+char *GetAresLookups() {
+    static char lookups[] = "bf";
+    return lookups;
 }
 
 ares_socket_t OpenSocket(int family, int type, int protocol, void *arg) {
