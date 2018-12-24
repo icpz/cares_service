@@ -120,13 +120,13 @@ public:
     using AsyncCallback = std::function<void(boost::system::error_code, struct hostent *)>;
 
     Channel(const Channel &) = delete;
-    Channel(boost::asio::io_context &ios)
-        : context_(ios), timer_(context_), functions_(GetSocketFunctions()), request_count_(0) {
+    explicit Channel(boost::asio::io_context &ios, boost::posix_time::time_duration timeout = boost::posix_time::millisec{3000})
+        : context_(ios), timer_(context_), timer_period_(timeout / 2), functions_(GetSocketFunctions()), request_count_(0) {
         struct ares_options option;
         memset(&option, 0, sizeof option);
         option.sock_state_cb = SocketStateCb;
         option.sock_state_cb_data = this;
-        option.timeout = 3000;
+        option.timeout = timeout.total_milliseconds();
         option.tries = 3;
         option.lookups = GetAresLookups();
         int mask = ARES_OPT_NOROTATE | ARES_OPT_TIMEOUTMS | ARES_OPT_SOCK_STATE_CB | ARES_OPT_TRIES | ARES_OPT_LOOKUPS;
@@ -183,10 +183,11 @@ public:
 
 private:
 
-    const uint64_t kTimerPeriod = 1000;
-
     void TimerStart() {
-        TimerCallback(boost::system::error_code{});
+        auto self{shared_from_this()};
+        last_tick_ = boost::posix_time::microsec_clock::local_time();
+        timer_.expires_from_now(timer_period_);
+        timer_.async_wait(std::bind(&Channel::TimerCallback, self, std::placeholders::_1));
     }
 
     void TimerStop() {
@@ -196,17 +197,15 @@ private:
     void TimerCallback(boost::system::error_code ec) {
         auto self{shared_from_this()};
         auto now = boost::posix_time::microsec_clock::local_time();
-        auto after = now - last_tick_ + boost::posix_time::millisec{kTimerPeriod};
+        auto after = last_tick_ - now + timer_period_;
         if (after.is_negative() || after == boost::posix_time::millisec{0}) {
             last_tick_ = boost::posix_time::microsec_clock::local_time();
             ::ares_process_fd(channel_, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
-            after = boost::posix_time::millisec{kTimerPeriod};
+            after = timer_period_;
         }
-        if (!ec) {
+        if (!ec && request_count_) {
             timer_.expires_from_now(after);
-            timer_.async_wait(
-                std::bind(&Channel::TimerCallback, self, std::placeholders::_1)
-            );
+            timer_.async_wait(std::bind(&Channel::TimerCallback, self, std::placeholders::_1));
         }
     }
 
@@ -227,6 +226,7 @@ private:
     boost::asio::io_context &context_;
     ares_channel channel_;
     boost::asio::deadline_timer timer_;
+    boost::posix_time::time_duration timer_period_;
     boost::posix_time::ptime last_tick_;
     std::shared_ptr<struct ares_socket_functions> functions_;
     std::map<ares_socket_t, std::shared_ptr<Socket>> sockets_;
