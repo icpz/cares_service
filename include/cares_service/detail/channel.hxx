@@ -18,16 +18,16 @@
 namespace cares {
 namespace detail {
 
-std::shared_ptr<struct ares_socket_functions> GetSocketFunctions();
-char *GetAresLookups();
+inline std::shared_ptr<struct ares_socket_functions> GetSocketFunctions();
+inline char *GetAresLookups();
 
-ares_socket_t OpenSocket(int family, int type, int protocol, void *arg);
-int CloseSocket(ares_socket_t fd, void *arg);
-int ConnectSocket(ares_socket_t fd, const struct sockaddr *addr, ares_socklen_t len, void *arg);
-ares_ssize_t ReadSocket(ares_socket_t fd, void *data, size_t data_len, int flags, struct sockaddr *addr, ares_socklen_t *addr_len, void *arg);
-ares_ssize_t SendSocket(ares_socket_t fd, const struct iovec *data, int len, void *arg);
+inline ares_socket_t OpenSocket(int family, int type, int protocol, void *arg);
+inline int CloseSocket(ares_socket_t fd, void *arg);
+inline int ConnectSocket(ares_socket_t fd, const struct sockaddr *addr, ares_socklen_t len, void *arg);
+inline ares_ssize_t ReadSocket(ares_socket_t fd, void *data, size_t data_len, int flags, struct sockaddr *addr, ares_socklen_t *addr_len, void *arg);
+inline ares_ssize_t SendSocket(ares_socket_t fd, const struct iovec *data, int len, void *arg);
 
-void SocketStateCb(void *arg, ares_socket_t fd, int readable, int writeable);
+inline void SocketStateCb(void *arg, ares_socket_t fd, int readable, int writeable);
 
 class Channel : public std::enable_shared_from_this<Channel> {
     struct Socket : public std::enable_shared_from_this<Socket> {

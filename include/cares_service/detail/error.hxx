@@ -24,7 +24,7 @@ public:
 
 } // namespace detail
 
-boost::system::error_category &get_category() {
+inline boost::system::error_category &get_category() {
     static auto category = \
         std::make_unique<detail::CaresErrorCategory>();
     return *category;
