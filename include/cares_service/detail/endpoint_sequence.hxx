@@ -16,6 +16,7 @@ public:
     using endpoint = boost::asio::ip::basic_endpoint<Protocol>;
     using sequence = std::list<endpoint>;
     using iterator = typename sequence::iterator;
+    using const_iterator = typename sequence::const_iterator;
 
     EndpointSequence(uint16_t port)
         : endpoints_(std::make_shared<sequence>()), port_(port) {
@@ -56,7 +57,15 @@ public:
         return endpoints_->begin();
     }
 
+    const_iterator begin() const {
+        return endpoints_->begin();
+    }
+
     iterator end() {
+        return endpoints_->end();
+    }
+
+    const_iterator end() const {
         return endpoints_->end();
     }
 
