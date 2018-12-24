@@ -247,7 +247,7 @@ std::shared_ptr<struct ares_socket_functions> GetSocketFunctions() {
             result->aconnect  = ConnectSocket;
             result->arecvfrom = ReadSocket;
             result->asendv    = SendSocket;
-            return std::move(result);
+            return result;
         }();
     return funcs;
 }

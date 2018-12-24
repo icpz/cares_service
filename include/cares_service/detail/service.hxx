@@ -61,7 +61,7 @@ public:
                 if (result.use_count() == 1) {
                     boost::asio::post(
                         get_io_context(),
-                        [this, impl, handler, ec, result](){
+                        [handler, ec, result](){
                             (*handler)(ec, *result);
                         }
                     );
