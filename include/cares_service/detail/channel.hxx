@@ -127,7 +127,7 @@ public:
         option.sock_state_cb = SocketStateCb;
         option.sock_state_cb_data = this;
         option.timeout = timeout.total_milliseconds();
-        option.tries = 3;
+        option.tries = 1;
         option.lookups = GetAresLookups();
         int mask = ARES_OPT_NOROTATE | ARES_OPT_TIMEOUTMS | ARES_OPT_SOCK_STATE_CB | ARES_OPT_TRIES | ARES_OPT_LOOKUPS;
 

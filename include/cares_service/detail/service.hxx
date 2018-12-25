@@ -59,6 +59,9 @@ public:
                     result->Append(entries);
                 }
                 if (result.use_count() == 1) {
+                    if (!result->IsEmpty()) {
+                        ec.clear();
+                    }
                     boost::asio::post(
                         get_io_context(),
                         [handler, ec, result](){
