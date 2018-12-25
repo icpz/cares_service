@@ -118,6 +118,7 @@ class Channel : public std::enable_shared_from_this<Channel> {
     };
 public:
     using AsyncCallback = std::function<void(boost::system::error_code, struct hostent *)>;
+    using native_handle_type = ares_channel;
 
     Channel(const Channel &) = delete;
     explicit Channel(boost::asio::io_context &ios, boost::posix_time::time_duration timeout = boost::posix_time::millisec{3000})
@@ -181,6 +182,10 @@ public:
         }
     }
 
+    native_handle_type GetNativeHandle() {
+        return channel_;
+    }
+
 private:
 
     void TimerStart() {
@@ -224,7 +229,7 @@ private:
     }
 
     boost::asio::io_context &context_;
-    ares_channel channel_;
+    native_handle_type channel_;
     boost::asio::deadline_timer timer_;
     boost::posix_time::time_duration timer_period_;
     boost::posix_time::ptime last_tick_;

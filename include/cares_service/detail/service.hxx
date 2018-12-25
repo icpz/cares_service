@@ -16,6 +16,7 @@ public:
     using implementation_type = std::shared_ptr<ChannelImplementation>;
     using results_type = EndpointSequence<Protocol>;
     using resolve_handler = std::function<void(boost::system::error_code, results_type)>;
+    using native_handle_type = typename ChannelImplementation::native_handle_type;
 
     static boost::asio::io_context::id id;
 
@@ -81,6 +82,11 @@ public:
     void set_servers(implementation_type &impl, const std::string &servers, boost::system::error_code &ec) {
         impl->SetServerPortsCsv(servers, ec);
     }
+
+    native_handle_type native_handle(implementation_type &impl) {
+        return impl->GetNativeHandle();
+    }
+
 };
 
 template<class Protocol, class ChannelImplementation>

@@ -10,6 +10,7 @@ template<class Service>
 class basic_cares_resolver : public boost::asio::basic_io_object<Service> {
 public:
     using results_type = typename Service::results_type;
+    using native_handle_type = typename Service::native_handle_type;
 
     explicit basic_cares_resolver(boost::asio::io_context &context)
         : boost::asio::basic_io_object<Service>(context) {
@@ -27,6 +28,11 @@ public:
     void set_servers(const std::string &servers, boost::system::error_code &ec) {
         this->get_service().set_servers(this->get_implementation(), servers, ec);
     }
+
+    native_handle_type native_handle() {
+        return this->get_service().native_handle(this->get_implementation());
+    }
+
 };
 
 } // namespace detail
