@@ -122,7 +122,10 @@ public:
 
     Channel(const Channel &) = delete;
     explicit Channel(boost::asio::io_context &ios, boost::posix_time::time_duration timeout = boost::posix_time::millisec{3000})
-        : context_(ios), timer_(context_), timer_period_(timeout / 2), functions_(GetSocketFunctions()), request_count_(0) {
+        : context_(ios), strand_(context_),
+          timer_(context_), timer_period_(timeout / 2),
+          functions_(GetSocketFunctions()), request_count_(0) {
+
         struct ares_options option;
         memset(&option, 0, sizeof option);
         option.sock_state_cb = SocketStateCb;
@@ -205,13 +208,24 @@ private:
         auto after = last_tick_ - now + timer_period_;
         if (after.is_negative() || after == boost::posix_time::millisec{0}) {
             last_tick_ = boost::posix_time::microsec_clock::local_time();
-            ::ares_process_fd(channel_, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
+            ProcessFd(ARES_SOCKET_BAD, ARES_SOCKET_BAD);
             after = timer_period_;
         }
         if (!ec && request_count_) {
             timer_.expires_from_now(after);
             timer_.async_wait(std::bind(&Channel::TimerCallback, self, std::placeholders::_1));
         }
+    }
+
+    void ProcessFd(ares_socket_t rd, ares_socket_t wr) {
+        auto self{shared_from_this()};
+        boost::asio::post(
+            strand_,
+            [this, self, rd, wr]() {
+                last_tick_ = boost::posix_time::microsec_clock::local_time();
+                ::ares_process_fd(channel_, rd, wr);
+            }
+        );
     }
 
     static void HostCallback(void *arg, int status, int timeouts, struct hostent *hostent) {
@@ -229,6 +243,7 @@ private:
     }
 
     boost::asio::io_context &context_;
+    boost::asio::io_context::strand strand_;
     native_handle_type channel_;
     boost::asio::deadline_timer timer_;
     boost::posix_time::time_duration timer_period_;
@@ -266,12 +281,12 @@ char *GetAresLookups() {
 
 ares_socket_t OpenSocket(int family, int type, int protocol, void *arg) {
     auto channel = static_cast<Channel *>(arg);
-    auto &ios = channel->context_;
+    auto &context = channel->context_;
     ares_socket_t result = ARES_SOCKET_BAD;
     boost::system::error_code ec;
 
     if (type == SOCK_STREAM) {
-        boost::asio::ip::tcp::socket sock{ios};
+        boost::asio::ip::tcp::socket sock{context};
         auto af = (family == AF_INET) ? boost::asio::ip::tcp::v4() : boost::asio::ip::tcp::v6();
         sock.open(af, ec);
         if (!ec) {
@@ -281,7 +296,7 @@ ares_socket_t OpenSocket(int family, int type, int protocol, void *arg) {
             channel->sockets_.emplace(result, ptr);
         }
     } else if (type == SOCK_DGRAM) {
-        boost::asio::ip::udp::socket sock{ios};
+        boost::asio::ip::udp::socket sock{context};
         auto af = (family == AF_INET) ? boost::asio::ip::udp::v4() : boost::asio::ip::udp::v6();
         sock.open(af, ec);
         if (!ec) {
@@ -389,18 +404,20 @@ void SocketStateCb(void *arg, ares_socket_t fd, int readable, int writeable) {
     self->Cancel();
     if (readable) {
         self->AsyncWaitRead(
-            [channel, fd](){
-                channel->last_tick_ = boost::posix_time::microsec_clock::local_time();
-                ::ares_process_fd(channel->channel_, fd, ARES_SOCKET_BAD);
-            }
+            std::bind(
+                &Channel::ProcessFd,
+                channel->shared_from_this(),
+                fd, ARES_SOCKET_BAD
+            )
         );
     }
     if (writeable) {
         self->AsyncWaitWrite(
-            [channel, fd](){
-                channel->last_tick_ = boost::posix_time::microsec_clock::local_time();
-                ::ares_process_fd(channel->channel_, ARES_SOCKET_BAD, fd);
-            }
+            std::bind(
+                &Channel::ProcessFd,
+                channel->shared_from_this(),
+                ARES_SOCKET_BAD, fd
+            )
         );
     }
 }
