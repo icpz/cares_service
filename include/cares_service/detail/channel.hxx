@@ -289,25 +289,31 @@ ares_socket_t OpenSocket(int family, int type, int protocol, void *arg) {
         boost::asio::ip::tcp::socket sock{context};
         auto af = (family == AF_INET) ? boost::asio::ip::tcp::v4() : boost::asio::ip::tcp::v6();
         sock.open(af, ec);
-        if (!ec) {
-            sock.non_blocking(true);
-            result = sock.native_handle();
-            auto ptr = std::make_shared<Channel::Socket>(std::move(sock));
-            channel->sockets_.emplace(result, ptr);
-        }
+        if (ec) { goto __open_socket_final_state; }
+
+        sock.non_blocking(true, ec);
+        if (ec) { goto __open_socket_final_state; }
+
+        result = sock.native_handle();
+        auto ptr = std::make_shared<Channel::Socket>(std::move(sock));
+        channel->sockets_.emplace(result, ptr);
     } else if (type == SOCK_DGRAM) {
         boost::asio::ip::udp::socket sock{context};
         auto af = (family == AF_INET) ? boost::asio::ip::udp::v4() : boost::asio::ip::udp::v6();
         sock.open(af, ec);
-        if (!ec) {
-            sock.non_blocking(true);
-            result = sock.native_handle();
-            auto ptr = std::make_shared<Channel::Socket>(std::move(sock));
-            channel->sockets_.emplace(result, ptr);
-        }
+        if (ec) { goto __open_socket_final_state; }
+
+        sock.non_blocking(true, ec);
+        if (ec) { goto __open_socket_final_state; }
+
+        result = sock.native_handle();
+        auto ptr = std::make_shared<Channel::Socket>(std::move(sock));
+        channel->sockets_.emplace(result, ptr);
     } else {
         assert(false);
     }
+
+__open_socket_final_state:
     if (ec) {
         SET_SOCKERRNO(ec.value());
         return -1;
