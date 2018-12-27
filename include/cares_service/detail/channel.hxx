@@ -3,6 +3,10 @@
 
 #if defined(_WIN32) && !defined(__CYGWIN__)
     #define SET_SOCKERRNO(x) (WSASetLastError((int)(x)))
+    struct iovec {
+        void *iov_base;
+        size_t iov_len;
+    };
 #else
     #define SET_SOCKERRNO(x) (errno = (x))
 #endif
