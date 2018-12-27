@@ -14,11 +14,15 @@ list(APPEND CXX_HDRS
     ${INC_PREFIX}/detail/service.hxx
     )
 
-find_library(CARES NAMES libcares.a cares.lib cares)
-
-if (CARES-NOTFOUND)
-    message(FATAL "libcares not found")
-endif (CARES-NOTFOUND)
+if (WIN32)
+    find_package(c-ares CONFIG REQUIRED)
+    set(CARES c-ares::cares)
+else (WIN32)
+    find_library(CARES NAMES libcares.a cares)
+    if (CARES-NOTFOUND)
+        message(FATAL "libcares not found")
+    endif (CARES-NOTFOUND)
+endif (WIN32)
 
 add_library(${PROJECT_NAME} INTERFACE)
 target_sources(${PROJECT_NAME} INTERFACE ${CXX_HDRS})
