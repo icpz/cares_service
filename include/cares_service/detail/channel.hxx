@@ -30,6 +30,17 @@ inline ares_ssize_t SendSocket(ares_socket_t fd, const struct iovec *data, int l
 inline void SocketStateCb(void *arg, ares_socket_t fd, int readable, int writeable);
 
 class Channel : public std::enable_shared_from_this<Channel> {
+public:
+    enum resolve_mode {
+        unspecific,
+        ipv4_first,
+        ipv4_only,
+        ipv6_first,
+        ipv6_only,
+        both
+    };
+
+private:
     struct Socket : public std::enable_shared_from_this<Socket> {
         using tcp_type = boost::asio::ip::tcp::socket;
         using udp_type = boost::asio::ip::udp::socket;
@@ -124,7 +135,8 @@ public:
     explicit Channel(boost::asio::io_context &ios, boost::posix_time::time_duration timeout = boost::posix_time::millisec{3000})
         : context_(ios), strand_(context_),
           timer_(context_), timer_period_(timeout / 2),
-          functions_(GetSocketFunctions()), request_count_(0) {
+          functions_(GetSocketFunctions()), request_count_(0),
+          resolve_mode_(unspecific) {
 
         struct ares_options option;
         memset(&option, 0, sizeof option);
@@ -153,23 +165,32 @@ public:
         ::ares_destroy(channel_);
     }
 
-private:
-    struct ChannelComplete {
-        std::shared_ptr<Channel> channel;
-        AsyncCallback callback;
-    };
+    template<class Results, class Handler>
+    void AsyncGetHostByName(const std::string &domain, std::shared_ptr<Results> result, std::shared_ptr<Handler> handler) {
+        auto self{shared_from_this()};
+        auto mode = GetResolveMode();
 
-public:
-    template<class Callback>
-    void AsyncGetHostByName(const std::string &domain, int family, Callback cb) {
-        auto comp = std::make_unique<ChannelComplete>();
-        comp->channel = shared_from_this();
-        comp->callback = std::move(cb);
-        ::ares_gethostbyname(channel_, domain.c_str(), family, &Channel::HostCallback, comp.release());
-        if (request_count_ == 0) {
-            TimerStart();
+        if (mode != ipv6_only) {
+            AsyncGetHostByNameInternal(
+                domain, AF_INET,
+                std::bind(
+                    &Channel::ResultHandler<Results, Handler>, self,
+                    std::placeholders::_1, std::placeholders::_2,
+                    result, handler
+                )
+            );
         }
-        ++request_count_;
+
+        if (mode != ipv4_only) {
+            AsyncGetHostByNameInternal(
+                domain, AF_INET6,
+                std::bind(
+                    &Channel::ResultHandler<Results, Handler>, self,
+                    std::placeholders::_1, std::placeholders::_2,
+                    result, handler
+                )
+            );
+        }
     }
 
     void Cancel() {
@@ -185,11 +206,101 @@ public:
         }
     }
 
+    void SetResolveMode(resolve_mode mode, boost::system::error_code &ec) {
+        ec.clear();
+        if (mode != unspecific && mode != ipv4_first && mode != ipv6_first
+            && mode != ipv4_only && mode != ipv6_only && mode != both) {
+            ec.assign(error::not_implemented, error::get_category());
+            return;
+        }
+        resolve_mode_ = mode;
+    }
+
+    resolve_mode GetResolveMode() const {
+        return resolve_mode_;
+    }
+
     native_handle_type GetNativeHandle() {
         return channel_;
     }
 
 private:
+    struct ChannelComplete {
+        std::shared_ptr<Channel> channel;
+        AsyncCallback callback;
+    };
+
+    template<class Callback>
+    void AsyncGetHostByNameInternal(const std::string &domain, int family, Callback &&cb) {
+        auto comp = std::make_unique<ChannelComplete>();
+        comp->channel = shared_from_this();
+        comp->callback = std::move(cb);
+        ::ares_gethostbyname(channel_, domain.c_str(), family, &Channel::HostCallback, comp.release());
+        if (request_count_ == 0) {
+            TimerStart();
+        }
+        ++request_count_;
+    }
+
+    template<class Results, class Callback>
+    void ResultHandler(boost::system::error_code ec, struct hostent *entries, std::shared_ptr<Results> &result, std::shared_ptr<Callback> cb) {
+        int family;
+        bool need_prepend = false;
+        auto mode = GetResolveMode();
+        bool should_invoke_cb = false;
+        switch (mode) {
+        case unspecific:
+            if (!result->IsEmpty()) {
+                break;
+            }
+            if (!ec && result->IsEmpty()) {
+                result->Append(entries);
+            }
+            if (!result->IsEmpty() || result.use_count() == 1) {
+                should_invoke_cb = true;
+            }
+            break;
+
+        case ipv4_first:
+        case ipv6_first:
+        case both:
+            need_prepend = (mode != both) && result->LastFamily(family);
+            need_prepend = \
+                need_prepend && (family == (mode == ipv4_first ? AF_INET6 : AF_INET));
+            if (!ec && !need_prepend) {
+                result->Append(entries);
+            } else if (!ec && need_prepend) {
+                result->Prepend(entries);
+            }
+            if (result.use_count() == 1) {
+                if (!result->IsEmpty()) {
+                    ec.clear();
+                }
+                should_invoke_cb = true;
+            }
+            break;
+
+        case ipv4_only:
+        case ipv6_only:
+            if (!ec) {
+                result->Append(entries);
+            }
+            should_invoke_cb = true;
+            break;
+
+        default:
+            assert(false);
+            break;
+        };
+        if (should_invoke_cb) {
+            boost::asio::post(
+                context_,
+                [cb, ec, result]() {
+                    (*cb)(ec, *result);
+                }
+            );
+        }
+    }
 
     void TimerStart() {
         auto self{shared_from_this()};
@@ -251,6 +362,7 @@ private:
     std::shared_ptr<struct ares_socket_functions> functions_;
     std::map<ares_socket_t, std::shared_ptr<Socket>> sockets_;
     uint64_t request_count_;
+    resolve_mode resolve_mode_;
 
     friend ares_socket_t OpenSocket(int family, int type, int protocol, void *arg);
     friend int CloseSocket(ares_socket_t fd, void *arg);

@@ -17,6 +17,7 @@ public:
     using results_type = EndpointSequence<Protocol>;
     using resolve_handler = std::function<void(boost::system::error_code, results_type)>;
     using native_handle_type = typename ChannelImplementation::native_handle_type;
+    using resolve_mode_type = typename ChannelImplementation::resolve_mode;
 
     static boost::asio::io_context::id id;
 
@@ -53,26 +54,8 @@ public:
     void async_resolve(implementation_type &impl, const std::string &name, uint16_t port, Handler &&cb) {
         auto handler = std::make_shared<Handler>(std::move(cb));
         auto result = std::make_shared<results_type>(port);
-        auto wrapper = \
-            [impl, handler, result, this]
-            (boost::system::error_code ec, struct hostent *entries) {
-                if (!ec) {
-                    result->Append(entries);
-                }
-                if (result.use_count() == 1) {
-                    if (!result->IsEmpty()) {
-                        ec.clear();
-                    }
-                    boost::asio::post(
-                        get_io_context(),
-                        [handler, ec, result](){
-                            (*handler)(ec, *result);
-                        }
-                    );
-                }
-            };
-        impl->AsyncGetHostByName(name, AF_INET, wrapper);
-        impl->AsyncGetHostByName(name, AF_INET6, wrapper);
+
+        impl->AsyncGetHostByName(name, result, handler);
     }
 
     void cancel(implementation_type &impl) {
@@ -81,6 +64,14 @@ public:
 
     void set_servers(implementation_type &impl, const std::string &servers, boost::system::error_code &ec) {
         impl->SetServerPortsCsv(servers, ec);
+    }
+
+    resolve_mode_type resolve_mode(implementation_type &impl) {
+        return impl->GetResolveMode();
+    }
+
+    void resolve_mode(implementation_type &impl, resolve_mode_type mode, boost::system::error_code &ec) {
+        impl->SetResolveMode(mode, ec);
     }
 
     native_handle_type native_handle(implementation_type &impl) {

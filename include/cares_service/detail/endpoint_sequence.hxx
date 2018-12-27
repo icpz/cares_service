@@ -18,8 +18,8 @@ public:
     using iterator = typename sequence::iterator;
     using const_iterator = typename sequence::const_iterator;
 
-    EndpointSequence(uint16_t port)
-        : endpoints_(std::make_shared<sequence>()), port_(port) {
+    explicit EndpointSequence(uint16_t port)
+        : endpoints_(std::make_shared<sequence>()), last_family_(AF_UNSPEC), port_(port) {
     }
 
     EndpointSequence(const struct hostent *entries, uint16_t port)
@@ -32,21 +32,29 @@ public:
     ~EndpointSequence() = default;
 
     void Append(const struct hostent *entries) {
-        address addr;
-        for (char **p = entries->h_addr_list; *p; ++p) {
-            if (entries->h_addrtype == AF_INET) {
-                boost::asio::ip::address_v4::bytes_type bytes;
-                assert(bytes.size() == entries->h_length);
-                memcpy(bytes.data(), *p, bytes.size());
-                addr = boost::asio::ip::make_address_v4(bytes);
-            } else {
-                boost::asio::ip::address_v6::bytes_type bytes;
-                assert(bytes.size() == entries->h_length);
-                memcpy(bytes.data(), *p, bytes.size());
-                addr = boost::asio::ip::make_address_v6(bytes);
-            }
-            endpoints_->emplace_back(addr, port_);
+        sequence subseq;
+        BuildList(entries, subseq);
+        if (!subseq.empty()) {
+            last_family_ = entries->h_addrtype;
+            endpoints_->splice(endpoints_->end(), subseq);
         }
+    }
+
+    void Prepend(const struct hostent *entries) {
+        sequence subseq;
+        BuildList(entries, subseq);
+        if (!subseq.empty()) {
+            last_family_ = entries->h_addrtype;
+            endpoints_->splice(endpoints_->begin(), subseq);
+        }
+    }
+
+    bool LastFamily(int &family) const {
+        if (last_family_ == AF_UNSPEC) {
+            return false;
+        }
+        family = last_family_;
+        return true;
     }
 
     bool IsEmpty() const {
@@ -74,7 +82,27 @@ public:
     }
 
 private:
+    void BuildList(const struct hostent *entries, sequence &subseq) {
+        address addr;
+        subseq.clear();
+        for (char **p = entries->h_addr_list; *p; ++p) {
+            if (entries->h_addrtype == AF_INET) {
+                boost::asio::ip::address_v4::bytes_type bytes;
+                assert(bytes.size() == entries->h_length);
+                memcpy(bytes.data(), *p, bytes.size());
+                addr = boost::asio::ip::make_address_v4(bytes);
+            } else {
+                boost::asio::ip::address_v6::bytes_type bytes;
+                assert(bytes.size() == entries->h_length);
+                memcpy(bytes.data(), *p, bytes.size());
+                addr = boost::asio::ip::make_address_v6(bytes);
+            }
+            subseq.emplace_back(addr, port_);
+        }
+    }
+
     std::shared_ptr<sequence> endpoints_;
+    int last_family_;
     uint16_t port_;
 };
 
