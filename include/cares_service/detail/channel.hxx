@@ -136,7 +136,7 @@ public:
         : context_(ios), strand_(context_),
           timer_(context_), timer_period_(timeout / 2),
           functions_(GetSocketFunctions()), request_count_(0),
-          resolve_mode_(unspecific) {
+          resolve_mode_(both) {
 
         struct ares_options option;
         memset(&option, 0, sizeof option);
