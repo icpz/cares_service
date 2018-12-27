@@ -55,7 +55,19 @@ public:
         auto handler = std::make_shared<Handler>(std::move(cb));
         auto result = std::make_shared<results_type>(port);
 
-        impl->AsyncGetHostByName(name, result, handler);
+        boost::system::error_code ec;
+        auto address = boost::asio::ip::make_address(name, ec);
+        if (!ec) { /* name is already an ip address, no need to resolve */
+            result->Append(std::move(address));
+            boost::asio::post(
+                get_io_context(),
+                [impl, handler, result]() {
+                    (*handler)(boost::system::error_code{}, *result);
+                }
+            );
+        } else {
+            impl->AsyncGetHostByName(name, result, handler);
+        }
     }
 
     void cancel(implementation_type &impl) {

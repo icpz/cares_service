@@ -40,6 +40,11 @@ public:
         }
     }
 
+    void Append(boost::asio::ip::address address) {
+        last_family_ = (address.is_v4() ? AF_INET : AF_INET6);
+        endpoints_->emplace_back(std::move(address), port_);
+    }
+
     void Prepend(const struct hostent *entries) {
         sequence subseq;
         BuildList(entries, subseq);
@@ -97,7 +102,7 @@ private:
                 memcpy(bytes.data(), *p, bytes.size());
                 addr = boost::asio::ip::make_address_v6(bytes);
             }
-            subseq.emplace_back(addr, port_);
+            subseq.emplace_back(std::move(addr), port_);
         }
     }
 
