@@ -18,6 +18,7 @@
 #include <ares.h>
 
 #include "error.hxx"
+#include "resolve_mode.hxx"
 
 namespace cares {
 namespace detail {
@@ -35,14 +36,7 @@ inline void SocketStateCb(void *arg, ares_socket_t fd, int readable, int writeab
 
 class Channel : public std::enable_shared_from_this<Channel> {
 public:
-    enum resolve_mode {
-        unspecific,
-        ipv4_first,
-        ipv4_only,
-        ipv6_first,
-        ipv6_only,
-        both
-    };
+    using resolve_mode = ::cares::detail::resolve_mode;
 
 private:
     struct Socket : public std::enable_shared_from_this<Socket> {

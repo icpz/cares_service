@@ -5,6 +5,7 @@
 #include <boost/asio.hpp>
 #include "error.hxx"
 #include "channel.hxx"
+#include "resolve_mode.hxx"
 #include "endpoint_sequence.hxx"
 
 namespace cares {
@@ -84,6 +85,15 @@ public:
 
     void resolve_mode(implementation_type &impl, resolve_mode_type mode, boost::system::error_code &ec) {
         impl->SetResolveMode(mode, ec);
+    }
+
+    void resolve_mode(implementation_type &impl, const std::string &mode, boost::system::error_code &ec) {
+        resolve_mode_type enum_mode;
+        if (!resolve_mode_from_string(mode, enum_mode)) {
+            ec.assign(error::not_implemented, error::get_category());
+            return;
+        }
+        impl->SetResolveMode(enum_mode, ec);
     }
 
     native_handle_type native_handle(implementation_type &impl) {

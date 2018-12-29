@@ -38,6 +38,10 @@ public:
         this->get_service().resolve_mode(this->get_implementation(), mode, ec);
     }
 
+    void resolve_mode(const std::string &mode, boost::system::error_code &ec) {
+        this->get_service().resolve_mode(this->get_implementation(), mode, ec);
+    }
+
     native_handle_type native_handle() {
         return this->get_service().native_handle(this->get_implementation());
     }
