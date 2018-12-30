@@ -18,6 +18,8 @@ namespace udp {
 using resolver = ::cares::resolver<boost::asio::ip::udp>;
 } // namespace udp
 
+using detail::available_resolve_modes;
+
 } // namespace cares
 
 #endif // __CARES_SERVICES_CARES_HXX__
