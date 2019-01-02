@@ -167,6 +167,11 @@ public:
     void AsyncGetHostByName(const std::string &domain, std::shared_ptr<Results> result, std::shared_ptr<Handler> handler) {
         auto self{shared_from_this()};
         auto mode = GetResolveMode();
+        auto remain_requests = std::make_shared<uint32_t>(1);
+
+        if (mode != ipv6_only && mode != ipv4_only) {
+            ++*remain_requests;
+        }
 
         if (mode != ipv6_only) {
             AsyncGetHostByNameInternal(
@@ -174,7 +179,7 @@ public:
                 std::bind(
                     &Channel::ResultHandler<Results, Handler>, self,
                     std::placeholders::_1, std::placeholders::_2,
-                    result, handler
+                    result, handler, remain_requests
                 )
             );
         }
@@ -185,7 +190,7 @@ public:
                 std::bind(
                     &Channel::ResultHandler<Results, Handler>, self,
                     std::placeholders::_1, std::placeholders::_2,
-                    result, handler
+                    result, handler, remain_requests
                 )
             );
         }
@@ -231,21 +236,28 @@ private:
     template<class Callback>
     void AsyncGetHostByNameInternal(const std::string &domain, int family, Callback &&cb) {
         auto comp = std::make_unique<ChannelComplete>();
-        comp->channel = shared_from_this();
+        auto self{shared_from_this()};
+        comp->channel = self;
         comp->callback = std::move(cb);
         ::ares_gethostbyname(channel_, domain.c_str(), family, &Channel::HostCallback, comp.release());
-        if (request_count_ == 0) {
-            TimerStart();
-        }
-        ++request_count_;
+        boost::asio::post(
+            strand_,
+            [this, self]() {
+                if (request_count_ == 0) {
+                    TimerStart();
+                }
+                ++request_count_;
+            }
+        );
     }
 
     template<class Results, class Callback>
-    void ResultHandler(boost::system::error_code ec, struct hostent *entries, std::shared_ptr<Results> &result, std::shared_ptr<Callback> cb) {
+    void ResultHandler(boost::system::error_code ec, struct hostent *entries, std::shared_ptr<Results> &result, std::shared_ptr<Callback> cb, std::shared_ptr<uint32_t> req) {
         int family;
         bool need_prepend = false;
         auto mode = GetResolveMode();
         bool should_invoke_cb = false;
+        --*req;
         switch (mode) {
         case unspecific:
             if (!result->IsEmpty()) {
@@ -254,7 +266,7 @@ private:
             if (!ec && result->IsEmpty()) {
                 result->Append(entries);
             }
-            if (!result->IsEmpty() || result.use_count() == 1) {
+            if (!result->IsEmpty() || *req == 0) {
                 should_invoke_cb = true;
             }
             break;
@@ -270,7 +282,7 @@ private:
             } else if (!ec && need_prepend) {
                 result->Prepend(entries);
             }
-            if (result.use_count() == 1) {
+            if (*req == 0) {
                 if (!result->IsEmpty()) {
                     ec.clear();
                 }
@@ -345,10 +357,16 @@ private:
             ec.assign(status, error::get_category());
         }
         comp->callback(ec, hostent);
-        comp->channel->request_count_--;
-        if (comp->channel->request_count_ == 0) {
-            comp->channel->TimerStop();
-        }
+        auto channel = comp->channel;
+        boost::asio::post(
+            channel->strand_,
+            [comp{std::move(comp)}]() {
+                comp->channel->request_count_--;
+                if (comp->channel->request_count_ == 0) {
+                    comp->channel->TimerStop();
+                }
+            }
+        );
     }
 
     boost::asio::io_context &context_;
@@ -359,7 +377,7 @@ private:
     boost::posix_time::ptime last_tick_;
     std::shared_ptr<struct ares_socket_functions> functions_;
     std::map<ares_socket_t, std::shared_ptr<Socket>> sockets_;
-    uint64_t request_count_;
+    int64_t request_count_;
     resolve_mode resolve_mode_;
 
     friend ares_socket_t OpenSocket(int family, int type, int protocol, void *arg);
