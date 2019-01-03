@@ -6,9 +6,10 @@
 #include <boost/preprocessor/seq/enum.hpp>
 #include <boost/preprocessor/seq/for_each.hpp>
 
-#if defined(__CARES_RESOLVE_STR2MODE) || defined(__CARES_RESOLVE_MODE_SEQ) || defined(__CARES_RESOLVE_MODE_ALLMODES)
+#if defined(__CARES_RESOLVE_STR2MODE) || defined(__CARES_RESOLVE_MODE_SEQ) \
+    || defined(__CARES_RESOLVE_MODE_ALLMODES) || defined(__CARES_RESOLVE_MODE_IS_VALID)
 #error Internal macro already defined
-#endif // defined(__CARES_RESOLVE_STR2MODE) || defined(__CARES_RESOLVE_MODE_SEQ) || defined(__CARES_RESOLVE_MODE_ALLMODES)
+#endif // defined(__CARES_RESOLVE_STR2MODE) || defined(__CARES_RESOLVE_MODE_SEQ) || defined(__CARES_RESOLVE_MODE_ALLMODES) || defined(__CARES_RESOLVE_MODE_IS_VALID)
 
 namespace cares {
 namespace detail {
@@ -37,6 +38,14 @@ inline std::vector<std::string> available_resolve_modes() {
     return result;
 }
 
+inline bool is_valid_resolve_mode(resolve_mode mode) {
+#define __CARES_RESOLVE_MODE_IS_VALID(unused, data, elem) \
+    do { if (data == elem) { return true; } } while (false);
+    BOOST_PP_SEQ_FOR_EACH(__CARES_RESOLVE_MODE_IS_VALID, mode, __CARES_RESOLVE_MODE_SEQ);
+    return false;
+}
+
+#undef __CARES_RESOLVE_MODE_IS_VALID
 #undef __CARES_RESOLVE_MODE_ALLMODES
 #undef __CARES_RESOLVE_STR2MODE
 #undef __CARES_RESOLVE_MODE_SEQ

@@ -211,8 +211,7 @@ public:
 
     void SetResolveMode(resolve_mode mode, boost::system::error_code &ec) {
         ec.clear();
-        if (mode != unspecific && mode != ipv4_first && mode != ipv6_first
-            && mode != ipv4_only && mode != ipv6_only && mode != both) {
+        if (!is_valid_resolve_mode(mode)) {
             ec.assign(error::not_implemented, error::get_category());
             return;
         }
